@@ -1,9 +1,11 @@
 import 'dart:convert';
 
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:sdp_transform/sdp_transform.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:uuid/uuid.dart';
 import 'firebase_options.dart';
 
 void main() async {
@@ -42,7 +44,7 @@ class _MyHomePageState extends State<MyHomePage> {
   final _localVideoRenderer = RTCVideoRenderer();
   final _remoteVideoRenderer = RTCVideoRenderer();
   final sdpController = TextEditingController();
-
+  final uuid = Uuid().v4();
   bool _offer = false;
 
   RTCPeerConnection? _peerConnection;
@@ -112,14 +114,15 @@ class _MyHomePageState extends State<MyHomePage> {
     return pc;
   }
 
-  void _createOffer() async {
+  Future<String> _createOffer() async {
     RTCSessionDescription description =
         await _peerConnection!.createOffer({'offerToReceiveVideo': 1});
     var session = parse(description.sdp.toString());
-    print(json.encode(session));
+
     _offer = true;
 
     _peerConnection!.setLocalDescription(description);
+    return json.encode(session);
   }
 
   void _createAnswer() async {
@@ -169,6 +172,19 @@ class _MyHomePageState extends State<MyHomePage> {
     await _localVideoRenderer.dispose();
     sdpController.dispose();
     super.dispose();
+  }
+
+  @override
+  deactivate() {
+    super.deactivate();
+  }
+
+  joinRandomRoom() async {
+    var offer = await _createOffer();
+    await FirebaseFirestore.instance
+        .collection('ActiveUsers')
+        .doc(uuid)
+        .set({offer: offer});
   }
 
   SizedBox videoRenderers() => SizedBox(

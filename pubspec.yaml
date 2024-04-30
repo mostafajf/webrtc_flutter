@@ -38,6 +38,7 @@ dependencies:
   sdp_transform: ^0.3.2
   firebase_core: ^2.30.1
   cloud_firestore: ^4.17.2
+  uuid: ^4.4.0
 
 dev_dependencies:
   flutter_test:
