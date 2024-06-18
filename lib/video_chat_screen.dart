@@ -18,13 +18,12 @@ class _VideoChatScreenState extends State<VideoChatScreen> {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   String? _roomId;
   bool _isInitiator = false;
-
+  final userId = Uuid().v4();
   @override
   void initState() {
     super.initState();
     _initializeRenderers();
     _createPeerConnection();
-    _findUser();
   }
 
   @override
@@ -71,59 +70,54 @@ class _VideoChatScreenState extends State<VideoChatScreen> {
   }
 
   void _findUser() async {
-    final userId = Uuid().v4();
-    if (userId != null) {
-      final userDocRef = _firestore.collection('queue').doc(userId);
+    final userDocRef = _firestore.collection('queue').doc(userId);
 
-      await _firestore.runTransaction((transaction) async {
-        final userSnapshot = await transaction.get(userDocRef);
+    await _firestore.runTransaction((transaction) async {
+      final userSnapshot = await transaction.get(userDocRef);
 
-        if (!userSnapshot.exists) {
-          transaction
-              .set(userDocRef, {'timestamp': FieldValue.serverTimestamp()});
-        }
-      });
+      transaction
+          .set(userDocRef, {'lastUpdatedAt': FieldValue.serverTimestamp()});
+    });
 
-      _firestore
-          .collection('queue')
-          .orderBy('timestamp')
-          .limit(2)
-          .snapshots()
-          .listen((snapshot) async {
-        if (_roomId != null) return;
+    _firestore
+        .collection('queue')
+        .orderBy('lastUpdatedAt')
+        .limit(2)
+        .snapshots()
+        .listen((snapshot) async {
+      if (_roomId != null) return;
 
-        final queueDocs = snapshot.docs;
-        if (queueDocs.length < 2) return;
+      final queueDocs = snapshot.docs;
+      if (queueDocs.length < 2) return;
 
-        final userIds = queueDocs.map((doc) => doc.id).toList();
-        if (userIds.contains(userId)) {
-          final otherUserId = userIds.firstWhere((id) => id != userId);
-          _roomId = _firestore.collection('rooms').doc().id;
+      final userIds = queueDocs.map((doc) => doc.id).toList();
+      if (userIds.contains(userId)) {
+        final otherUserId = userIds.firstWhere((id) => id != userId);
+        _roomId = _firestore.collection('rooms').doc().id;
 
-          await _firestore.runTransaction((transaction) async {
-            final roomDocRef = _firestore.collection('rooms').doc(_roomId);
+        await _firestore.runTransaction((transaction) async {
+          final roomDocRef = _firestore.collection('rooms').doc(_roomId);
 
-            transaction.set(roomDocRef, {
-              'initiator': userId,
-              'receiver': otherUserId,
-            });
-
-            transaction.delete(queueDocs[0].reference);
-            transaction.delete(queueDocs[1].reference);
+          transaction.set(roomDocRef, {
+            'initiator': userId,
+            'receiver': otherUserId,
           });
 
-          setState(() {
-            _isInitiator = userId == userIds[0];
-          });
+          transaction.delete(queueDocs[0].reference);
+          transaction.delete(queueDocs[1].reference);
+        });
 
-          if (_isInitiator) {
-            _createOffer();
-          } else {
-            _joinRoom();
-          }
+        setState(() {
+          _isInitiator = userId == userIds[0];
+        });
+
+        if (_isInitiator) {
+          _createOffer();
+        } else {
+          _joinRoom();
         }
-      });
-    }
+      }
+    });
   }
 
   Future<void> _createOffer() async {

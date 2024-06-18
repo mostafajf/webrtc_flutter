@@ -7,7 +7,9 @@
     {
       "name": "webrtc_flutter",
       "request": "launch",
-      "type": "dart"
+      "type": "dart",
+      "args": ["-d","chrome"],
+      "program": "lib/main.dart"
     },
     {
       "name": "webrtc_flutter (profile mode)",
