@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:firebase_core/firebase_core.dart';
 
@@ -36,6 +37,25 @@ class _VideoChatScreenState extends State<VideoChatScreen> {
   Future<void> _initializeRenderers() async {
     await _localRenderer.initialize();
     await _remoteRenderer.initialize();
+    await _findUser();
+  }
+
+  Future<void> ListenUser() async {
+    await _firestore
+        .collection('users')
+        .doc(userId)
+        .snapshots()
+        .listen((event) async {
+      if (event.data()!['roomId'] != "") {
+        _roomId = event.data()!['roomId'];
+        await _createPeerConnection();
+        if (_isInitiator) {
+          await _createOffer();
+        } else {
+          await _joinRoom();
+        }
+      }
+    });
   }
 
   Future<void> _createPeerConnection() async {
@@ -69,55 +89,62 @@ class _VideoChatScreenState extends State<VideoChatScreen> {
     _peerConnection?.addStream(_localStream!);
   }
 
-  void _findUser() async {
-    final userDocRef = _firestore.collection('queue').doc(userId);
+  Future<void> _findUser() async {
+    try {
+      final userQueueDocRef = _firestore.collection('queue').doc(userId);
+      final userDocRef = _firestore.collection('users').doc(userId);
 
-    await _firestore.runTransaction((transaction) async {
-      final userSnapshot = await transaction.get(userDocRef);
-
-      transaction
-          .set(userDocRef, {'lastUpdatedAt': FieldValue.serverTimestamp()});
-    });
-
-    _firestore
-        .collection('queue')
-        .orderBy('lastUpdatedAt')
-        .limit(2)
-        .snapshots()
-        .listen((snapshot) async {
-      if (_roomId != null) return;
-
-      final queueDocs = snapshot.docs;
-      if (queueDocs.length < 2) return;
-
-      final userIds = queueDocs.map((doc) => doc.id).toList();
-      if (userIds.contains(userId)) {
-        final otherUserId = userIds.firstWhere((id) => id != userId);
-        _roomId = _firestore.collection('rooms').doc().id;
-
-        await _firestore.runTransaction((transaction) async {
-          final roomDocRef = _firestore.collection('rooms').doc(_roomId);
-
-          transaction.set(roomDocRef, {
-            'initiator': userId,
-            'receiver': otherUserId,
-          });
-
-          transaction.delete(queueDocs[0].reference);
-          transaction.delete(queueDocs[1].reference);
-        });
-
-        setState(() {
-          _isInitiator = userId == userIds[0];
-        });
-
-        if (_isInitiator) {
-          _createOffer();
-        } else {
-          _joinRoom();
-        }
+      var timestamp = Timestamp.now();
+      var userSnapshot = await userQueueDocRef.get();
+      if (!userSnapshot.exists) {
+        await userQueueDocRef.set({userId: userId, 'lastUpdatedAt': timestamp});
       }
-    });
+      await userDocRef.set({'state': 'pending', 'roomId': ""});
+      final findQuery = await _firestore
+          .collection('queue')
+          .orderBy('lastUpdatedAt')
+          .where("userId", isNotEqualTo: userId)
+          .limit(1)
+          .get();
+      if (_roomId != null) return;
+      if (findQuery.docs.isEmpty) {
+        throw NotMatchException();
+      }
+      final queueDocs = findQuery.docs;
+
+      if (!userSnapshot.exists) {}
+      final otherQueueUserDoc = queueDocs[0];
+      final otherUser = otherQueueUserDoc.data();
+      final otherUserId = otherQueueUserDoc.id;
+      Timestamp otherUserLastUpdatedAt = otherUser['lastUpdatedAt'];
+      if (timestamp.compareTo(otherUserLastUpdatedAt) < 0) {
+        _isInitiator = true;
+      } else {
+        _isInitiator = false;
+      }
+      await _firestore.runTransaction((transaction) async {
+        final userIds = [userId, otherUserId];
+        userIds.sort();
+        _roomId = userIds.join('_');
+        final roomDocRef = _firestore.collection('rooms').doc(_roomId);
+        final otherUserDocRef = _firestore.collection('users').doc(otherUserId);
+        var otherUserQuery = await transaction.get(otherUserDocRef);
+        final otherUserState = otherUserQuery.data()!['state'];
+        if (otherUserState == 'busy') {
+          throw NotMatchException();
+        }
+        transaction.set(roomDocRef, {
+          'initiator': _isInitiator ? userId : otherUserId,
+          'receiver': _isInitiator ? otherUserId : userId,
+        });
+        transaction.set(userDocRef, {'state': 'busy', "roomId": _roomId});
+        transaction.set(otherUserDocRef, {'state': 'busy', "roomId": _roomId});
+        transaction.delete(queueDocs[0].reference);
+        transaction.delete(queueDocs[1].reference);
+      });
+    } on NotMatchException catch (e) {
+      await _findUser();
+    }
   }
 
   Future<void> _createOffer() async {
@@ -196,4 +223,8 @@ class _VideoChatScreenState extends State<VideoChatScreen> {
       ),
     );
   }
+}
+
+class NotMatchException implements Exception {
+  NotMatchException();
 }
