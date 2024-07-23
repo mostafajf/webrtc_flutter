@@ -2,10 +2,11 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
-import 'package:flutter_webrtc/flutter_webrtc.dart';
+import 'package:flutter_webrtc/flutter_webrtc.dart' as webrtc;
 import 'package:firebase_core/firebase_core.dart';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:get/route_manager.dart';
 import 'package:uuid/uuid.dart';
 
 class VideoChatScreen extends StatefulWidget {
@@ -14,10 +15,10 @@ class VideoChatScreen extends StatefulWidget {
 }
 
 class _VideoChatScreenState extends State<VideoChatScreen> {
-  final RTCVideoRenderer _localRenderer = RTCVideoRenderer();
-  final RTCVideoRenderer _remoteRenderer = RTCVideoRenderer();
-  RTCPeerConnection? _peerConnection;
-  MediaStream? _localStream;
+  final webrtc.RTCVideoRenderer _localRenderer = webrtc.RTCVideoRenderer();
+  final webrtc.RTCVideoRenderer _remoteRenderer = webrtc.RTCVideoRenderer();
+  webrtc.RTCPeerConnection? _peerConnection;
+  webrtc.MediaStream? _localStream;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   String? _roomId;
   bool _isInitiator = false;
@@ -79,7 +80,7 @@ class _VideoChatScreenState extends State<VideoChatScreen> {
           if (change.type == DocumentChangeType.added) {
             var data = change.doc.data();
             _peerConnection?.addCandidate(
-              RTCIceCandidate(
+              webrtc.RTCIceCandidate(
                   data!['candidate'], data['sdpMid'], data['sdpMLineIndex']),
             );
           }
@@ -89,14 +90,14 @@ class _VideoChatScreenState extends State<VideoChatScreen> {
   }
 
   Future<void> _createPeerConnection() async {
-    _localStream = await navigator.mediaDevices.getUserMedia({
+    _localStream = await webrtc.navigator.mediaDevices.getUserMedia({
       'video': true,
       'audio': true,
     });
 
     _localRenderer.srcObject = _localStream;
 
-    _peerConnection = await createPeerConnection({
+    _peerConnection = await webrtc.createPeerConnection({
       'iceServers': [
         {'urls': 'stun:stun.l.google.com:19302'},
       ]
@@ -187,7 +188,9 @@ class _VideoChatScreenState extends State<VideoChatScreen> {
   }
 
   Future<void> _createOffer() async {
-    RTCSessionDescription description = await _peerConnection!.createOffer();
+    Get.snackbar("title", "message");
+    webrtc.RTCSessionDescription description =
+        await _peerConnection!.createOffer();
     await _peerConnection!.setLocalDescription(description);
 
     if (_roomId != null) {
@@ -208,11 +211,11 @@ class _VideoChatScreenState extends State<VideoChatScreen> {
         if (roomData!.isNotEmpty) {
           if (roomData.containsKey('offer')) {
             final offerData = roomData['offer'];
-            RTCSessionDescription offer =
-                RTCSessionDescription(offerData['sdp'], offerData['type']);
+            webrtc.RTCSessionDescription offer = webrtc.RTCSessionDescription(
+                offerData['sdp'], offerData['type']);
             await _peerConnection!.setRemoteDescription(offer);
 
-            RTCSessionDescription description =
+            webrtc.RTCSessionDescription description =
                 await _peerConnection!.createAnswer();
             await _peerConnection!.setLocalDescription(description);
 
@@ -232,10 +235,10 @@ class _VideoChatScreenState extends State<VideoChatScreen> {
       body: Column(
         children: [
           Expanded(
-            child: RTCVideoView(_localRenderer),
+            child: webrtc.RTCVideoView(_localRenderer),
           ),
           Expanded(
-            child: RTCVideoView(_remoteRenderer),
+            child: webrtc.RTCVideoView(_remoteRenderer),
           ),
           TextField(controller: idController),
           ElevatedButton(
