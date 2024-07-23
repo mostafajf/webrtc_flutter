@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
@@ -19,7 +21,11 @@ class _VideoChatScreenState extends State<VideoChatScreen> {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   String? _roomId;
   bool _isInitiator = false;
-  final userId = Uuid().v4();
+  var userId = Uuid().v4();
+  TextEditingController idController = TextEditingController();
+  StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? userListener;
+  StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? candidatesListener;
+
   @override
   void initState() {
     super.initState();
@@ -31,24 +37,27 @@ class _VideoChatScreenState extends State<VideoChatScreen> {
   void dispose() {
     _localRenderer.dispose();
     _remoteRenderer.dispose();
+    _peerConnection?.dispose();
+    userListener?.cancel();
+    candidatesListener?.cancel();
     super.dispose();
   }
 
   Future<void> _initializeRenderers() async {
     await _localRenderer.initialize();
     await _remoteRenderer.initialize();
-    await _findUser();
+    // await _findUser();
   }
 
-  Future<void> ListenUser() async {
-    await _firestore
+  void ListenUser() async {
+    userListener ??= _firestore
         .collection('users')
         .doc(userId)
         .snapshots()
         .listen((event) async {
       if (event.data()!['roomId'] != "") {
         _roomId = event.data()!['roomId'];
-        await _createPeerConnection();
+
         if (_isInitiator) {
           await _createOffer();
         } else {
@@ -56,6 +65,27 @@ class _VideoChatScreenState extends State<VideoChatScreen> {
         }
       }
     });
+  }
+
+  void listenCandidates() {
+    if (candidatesListener != null && _roomId != null) {
+      candidatesListener = _firestore
+          .collection('rooms')
+          .doc(_roomId)
+          .collection('candidates')
+          .snapshots()
+          .listen((snapshot) {
+        for (var change in snapshot.docChanges) {
+          if (change.type == DocumentChangeType.added) {
+            var data = change.doc.data();
+            _peerConnection?.addCandidate(
+              RTCIceCandidate(
+                  data!['candidate'], data['sdpMid'], data['sdpMLineIndex']),
+            );
+          }
+        }
+      });
+    }
   }
 
   Future<void> _createPeerConnection() async {
@@ -91,13 +121,18 @@ class _VideoChatScreenState extends State<VideoChatScreen> {
 
   Future<void> _findUser() async {
     try {
+      userId = idController.text;
+      ListenUser();
+      if (_roomId != null) return;
       final userQueueDocRef = _firestore.collection('queue').doc(userId);
       final userDocRef = _firestore.collection('users').doc(userId);
+      final userqueueRef = _firestore.collection('queue').doc(userId);
 
       var timestamp = Timestamp.now();
       var userSnapshot = await userQueueDocRef.get();
       if (!userSnapshot.exists) {
-        await userQueueDocRef.set({userId: userId, 'lastUpdatedAt': timestamp});
+        await userQueueDocRef
+            .set({'userId': userId, 'lastUpdatedAt': timestamp});
       }
       await userDocRef.set({'state': 'pending', 'roomId': ""});
       final findQuery = await _firestore
@@ -106,7 +141,6 @@ class _VideoChatScreenState extends State<VideoChatScreen> {
           .where("userId", isNotEqualTo: userId)
           .limit(1)
           .get();
-      if (_roomId != null) return;
       if (findQuery.docs.isEmpty) {
         throw NotMatchException();
       }
@@ -139,11 +173,16 @@ class _VideoChatScreenState extends State<VideoChatScreen> {
         });
         transaction.set(userDocRef, {'state': 'busy', "roomId": _roomId});
         transaction.set(otherUserDocRef, {'state': 'busy', "roomId": _roomId});
-        transaction.delete(queueDocs[0].reference);
-        transaction.delete(queueDocs[1].reference);
+        transaction.delete(userqueueRef);
+        transaction.delete(otherQueueUserDoc.reference);
       });
+      if (_roomId!.isNotEmpty) {
+        listenCandidates();
+      }
     } on NotMatchException catch (e) {
       await _findUser();
+    } catch (e) {
+      print(e);
     }
   }
 
@@ -152,9 +191,9 @@ class _VideoChatScreenState extends State<VideoChatScreen> {
     await _peerConnection!.setLocalDescription(description);
 
     if (_roomId != null) {
-      _firestore.collection('rooms').doc(_roomId).update({
+      _firestore.collection('rooms').doc(_roomId).set({
         'offer': description.toMap(),
-      });
+      }, SetOptions(merge: true));
     }
   }
 
@@ -166,7 +205,7 @@ class _VideoChatScreenState extends State<VideoChatScreen> {
           .snapshots()
           .listen((roomSnapshot) async {
         final roomData = roomSnapshot.data();
-        if (roomData != null) {
+        if (roomData!.isNotEmpty) {
           if (roomData.containsKey('offer')) {
             final offerData = roomData['offer'];
             RTCSessionDescription offer =
@@ -177,27 +216,10 @@ class _VideoChatScreenState extends State<VideoChatScreen> {
                 await _peerConnection!.createAnswer();
             await _peerConnection!.setLocalDescription(description);
 
-            _firestore.collection('rooms').doc(_roomId).update({
+            _firestore.collection('rooms').doc(_roomId).set({
               'answer': description.toMap(),
-            });
+            }, SetOptions(merge: true));
           }
-
-          _firestore
-              .collection('rooms')
-              .doc(_roomId)
-              .collection('candidates')
-              .snapshots()
-              .listen((snapshot) {
-            for (var change in snapshot.docChanges) {
-              if (change.type == DocumentChangeType.added) {
-                var data = change.doc.data();
-                _peerConnection?.addCandidate(
-                  RTCIceCandidate(data!['candidate'], data['sdpMid'],
-                      data['sdpMLineIndex']),
-                );
-              }
-            }
-          });
         }
       });
     }
@@ -215,6 +237,7 @@ class _VideoChatScreenState extends State<VideoChatScreen> {
           Expanded(
             child: RTCVideoView(_remoteRenderer),
           ),
+          TextField(controller: idController),
           ElevatedButton(
             onPressed: _findUser,
             child: Text('Find User'),
