@@ -230,9 +230,10 @@ class _VideoChatScreenState extends State<VideoChatScreen> {
     webrtc.RTCSessionDescription description =
         await _peerConnection!.createOffer();
     await _peerConnection!.setLocalDescription(description);
-
-    if (_roomId != null) {
-      _firestore.collection('rooms').doc(_roomId).set({
+    var roomQuery = await _firestore.collection('rooms').doc(_roomId).get();
+    var roomData = roomQuery.data();
+    if (roomData!.containsKey('offer')) {
+      await _firestore.collection('rooms').doc(_roomId).set({
         'offer': description.toMap(),
       }, SetOptions(merge: true));
     }
@@ -240,29 +241,33 @@ class _VideoChatScreenState extends State<VideoChatScreen> {
 
   Future<void> _joinRoom() async {
     if (_roomId != null) {
-      _firestore
-          .collection('rooms')
-          .doc(_roomId)
-          .snapshots()
-          .listen((roomSnapshot) async {
-        final roomData = roomSnapshot.data();
-        if (roomData!.isNotEmpty) {
-          if (roomData.containsKey('offer')) {
-            final offerData = roomData['offer'];
-            webrtc.RTCSessionDescription offer = webrtc.RTCSessionDescription(
-                offerData['sdp'], offerData['type']);
-            await _peerConnection!.setRemoteDescription(offer);
+      var roomQuery = await _firestore.collection('rooms').doc(_roomId).get();
+      var roomData = roomQuery.data();
+      if (roomData!.containsKey('answer')) {
+        _firestore
+            .collection('rooms')
+            .doc(_roomId)
+            .snapshots()
+            .listen((roomSnapshot) async {
+          final roomData = roomSnapshot.data();
+          if (roomData!.isNotEmpty) {
+            if (roomData.containsKey('offer')) {
+              final offerData = roomData['offer'];
+              webrtc.RTCSessionDescription offer = webrtc.RTCSessionDescription(
+                  offerData['sdp'], offerData['type']);
+              await _peerConnection!.setRemoteDescription(offer);
 
-            webrtc.RTCSessionDescription description =
-                await _peerConnection!.createAnswer();
-            await _peerConnection!.setLocalDescription(description);
+              webrtc.RTCSessionDescription description =
+                  await _peerConnection!.createAnswer();
+              await _peerConnection!.setLocalDescription(description);
 
-            _firestore.collection('rooms').doc(_roomId).set({
-              'answer': description.toMap(),
-            }, SetOptions(merge: true));
+              _firestore.collection('rooms').doc(_roomId).set({
+                'answer': description.toMap(),
+              }, SetOptions(merge: true));
+            }
           }
-        }
-      });
+        });
+      }
     }
   }
 
