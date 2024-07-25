@@ -26,6 +26,7 @@ class _VideoChatScreenState extends State<VideoChatScreen> {
   TextEditingController idController = TextEditingController();
   StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? userListener;
   StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? candidatesListener;
+  StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? roomListener;
 
   @override
   void initState() {
@@ -41,6 +42,7 @@ class _VideoChatScreenState extends State<VideoChatScreen> {
     _peerConnection?.dispose();
     userListener?.cancel();
     candidatesListener?.cancel();
+    roomListener?.cancel();
     super.dispose();
   }
 
@@ -56,16 +58,41 @@ class _VideoChatScreenState extends State<VideoChatScreen> {
         .doc(userId)
         .snapshots()
         .listen((event) async {
-      if (event.data()!['roomId'] != "") {
-        _roomId = event.data()!['roomId'];
-
-        if (_isInitiator) {
-          await _createOffer();
-        } else {
-          await _joinRoom();
-        }
+      var roomId = event.data()!['roomId'];
+      if (roomId != "") {
+        _roomId = roomId;
+        listenRoom();
       }
     });
+  }
+
+  void listenRoom() {
+    if (_roomId != null) {
+      roomListener ??= _firestore
+          .collection('rooms')
+          .doc(_roomId)
+          .snapshots()
+          .listen((event) {
+        var data = event.data();
+        if (data!.containsKey('initiator')) {
+          var initiator = data['initiator'];
+          if (initiator == userId) {
+            _isInitiator = true;
+          } else {
+            _isInitiator = false;
+          }
+          offerOrAnswer();
+        }
+      });
+    }
+  }
+
+  void offerOrAnswer() async {
+    if (_isInitiator) {
+      await _createOffer();
+    } else {
+      await _joinRoom();
+    }
   }
 
   void listenCandidates() {
@@ -135,6 +162,7 @@ class _VideoChatScreenState extends State<VideoChatScreen> {
         await userQueueDocRef
             .set({'userId': userId, 'lastUpdatedAt': timestamp});
       }
+      if (_roomId != null) return;
       await userDocRef.set({'state': 'pending', 'roomId': ""});
       final findQuery = await _firestore
           .collection('queue')
@@ -147,7 +175,6 @@ class _VideoChatScreenState extends State<VideoChatScreen> {
       }
       final queueDocs = findQuery.docs;
 
-      if (!userSnapshot.exists) {}
       final otherQueueUserDoc = queueDocs[0];
       final otherUser = otherQueueUserDoc.data();
       final otherUserId = otherQueueUserDoc.id;
@@ -166,16 +193,21 @@ class _VideoChatScreenState extends State<VideoChatScreen> {
         var otherUserQuery = await transaction.get(otherUserDocRef);
         final otherUserState = otherUserQuery.data()!['state'];
         if (otherUserState == 'busy') {
+          if (_roomId != null) return;
+
           throw NotMatchException();
         }
         transaction.set(roomDocRef, {
           'initiator': _isInitiator ? userId : otherUserId,
           'receiver': _isInitiator ? otherUserId : userId,
         });
-        transaction.set(userDocRef, {'state': 'busy', "roomId": _roomId});
-        transaction.set(otherUserDocRef, {'state': 'busy', "roomId": _roomId});
+        transaction.set(userDocRef,
+            {'state': 'busy', "roomId": _roomId, "initiator": _isInitiator});
+        transaction.set(otherUserDocRef,
+            {'state': 'busy', "roomId": _roomId, "initiator": !_isInitiator});
         transaction.delete(userqueueRef);
         transaction.delete(otherQueueUserDoc.reference);
+        listenRoom();
       });
       if (_roomId!.isNotEmpty) {
         listenCandidates();
