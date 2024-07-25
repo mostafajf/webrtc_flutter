@@ -84,17 +84,17 @@ class _VideoChatScreenState extends State<VideoChatScreen> {
           } else {
             _isInitiator = false;
           }
-          offerOrAnswer();
+          offerOrAnswer(data);
         }
       });
     }
   }
 
-  void offerOrAnswer() async {
+  void offerOrAnswer(Map<String, dynamic>? room) async {
     if (_isInitiator) {
-      await _createOffer();
+      await _createOffer(room);
     } else {
-      await _joinRoom();
+      await _joinRoom(room);
     }
   }
 
@@ -225,48 +225,37 @@ class _VideoChatScreenState extends State<VideoChatScreen> {
     }
   }
 
-  Future<void> _createOffer() async {
+  Future<void> _createOffer(Map<String, dynamic>? room) async {
     Get.snackbar("title", "message");
-    webrtc.RTCSessionDescription description =
-        await _peerConnection!.createOffer();
-    await _peerConnection!.setLocalDescription(description);
-    var roomQuery = await _firestore.collection('rooms').doc(_roomId).get();
-    var roomData = roomQuery.data();
-    if (roomData!.containsKey('offer')) {
+
+    if (!room!.containsKey('offer')) {
+      webrtc.RTCSessionDescription description =
+          await _peerConnection!.createOffer();
+      await _peerConnection!.setLocalDescription(description);
       await _firestore.collection('rooms').doc(_roomId).set({
         'offer': description.toMap(),
       }, SetOptions(merge: true));
     }
   }
 
-  Future<void> _joinRoom() async {
+  Future<void> _joinRoom(Map<String, dynamic>? room) async {
     if (_roomId != null) {
-      var roomQuery = await _firestore.collection('rooms').doc(_roomId).get();
-      var roomData = roomQuery.data();
-      if (roomData!.containsKey('answer')) {
-        _firestore
-            .collection('rooms')
-            .doc(_roomId)
-            .snapshots()
-            .listen((roomSnapshot) async {
-          final roomData = roomSnapshot.data();
-          if (roomData!.isNotEmpty) {
-            if (roomData.containsKey('offer')) {
-              final offerData = roomData['offer'];
-              webrtc.RTCSessionDescription offer = webrtc.RTCSessionDescription(
-                  offerData['sdp'], offerData['type']);
-              await _peerConnection!.setRemoteDescription(offer);
+      if (!room!.containsKey('answer')) {
+        if (room.containsKey('offer')) {
+          final offerData = room['offer'];
+          webrtc.RTCSessionDescription offer =
+              webrtc.RTCSessionDescription(offerData['sdp'], offerData['type']);
+          await _peerConnection!.setRemoteDescription(offer);
 
-              webrtc.RTCSessionDescription description =
-                  await _peerConnection!.createAnswer();
-              await _peerConnection!.setLocalDescription(description);
+          webrtc.RTCSessionDescription description =
+              await _peerConnection!.createAnswer();
+          await _peerConnection!.setLocalDescription(description);
 
-              _firestore.collection('rooms').doc(_roomId).set({
-                'answer': description.toMap(),
-              }, SetOptions(merge: true));
-            }
-          }
-        });
+          _firestore.collection('rooms').doc(_roomId).set({
+            'answer': description.toMap(),
+          }, SetOptions(merge: true));
+          setState(() {});
+        }
       }
     }
   }
