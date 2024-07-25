@@ -231,7 +231,7 @@ class _VideoChatScreenState extends State<VideoChatScreen> {
 
     if (!room!.containsKey('offer')) {
       webrtc.RTCSessionDescription description =
-          await _peerConnection!.createOffer();
+          await _peerConnection!.createOffer({'offerToReceiveVideo': 1});
       await _peerConnection!.setLocalDescription(description);
       await _firestore.collection('rooms').doc(_roomId).set({
         'offer': description.toMap(),
@@ -249,7 +249,7 @@ class _VideoChatScreenState extends State<VideoChatScreen> {
           await _peerConnection!.setRemoteDescription(offer);
 
           webrtc.RTCSessionDescription description =
-              await _peerConnection!.createAnswer();
+              await _peerConnection!.createAnswer({'offerToReceiveVideo': 1});
           await _peerConnection!.setLocalDescription(description);
 
           _firestore.collection('rooms').doc(_roomId).set({
