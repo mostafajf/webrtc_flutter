@@ -27,7 +27,7 @@ class _VideoChatScreenState extends State<VideoChatScreen> {
   StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? userListener;
   StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? candidatesListener;
   StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? roomListener;
-
+  bool isLoading = false;
   @override
   void initState() {
     super.initState();
@@ -61,6 +61,9 @@ class _VideoChatScreenState extends State<VideoChatScreen> {
       var roomId = event.data()!['roomId'];
       if (roomId != "") {
         _roomId = roomId;
+        setState(() {
+          isLoading = false;
+        });
         listenRoom();
       }
     });
@@ -149,6 +152,9 @@ class _VideoChatScreenState extends State<VideoChatScreen> {
 
   Future<void> _findUser() async {
     try {
+      setState(() {
+        isLoading = true;
+      });
       userId = idController.text;
       ListenUser();
       if (_roomId != null) return;
@@ -273,10 +279,12 @@ class _VideoChatScreenState extends State<VideoChatScreen> {
             child: webrtc.RTCVideoView(_remoteRenderer),
           ),
           TextField(controller: idController),
-          ElevatedButton(
-            onPressed: _findUser,
-            child: Text('Find User'),
-          ),
+          isLoading
+              ? CircularProgressIndicator()
+              : ElevatedButton(
+                  onPressed: _findUser,
+                  child: Text('Find User'),
+                ),
         ],
       ),
     );
