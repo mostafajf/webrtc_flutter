@@ -6,6 +6,7 @@ import 'package:flutter_webrtc/flutter_webrtc.dart' as webrtc;
 import 'package:firebase_core/firebase_core.dart';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:get/get.dart';
 import 'package:get/route_manager.dart';
 import 'package:uuid/uuid.dart';
 
@@ -58,8 +59,8 @@ class _VideoChatScreenState extends State<VideoChatScreen> {
         .doc(userId)
         .snapshots()
         .listen((event) async {
-      var roomId = event.data()!['roomId'];
-      if (roomId != "") {
+      var roomId = event.data()!['roomId'] ?? "";
+      if (!roomId!.isBlank) {
         _roomId = roomId;
         setState(() {
           isLoading = false;
@@ -69,13 +70,13 @@ class _VideoChatScreenState extends State<VideoChatScreen> {
     });
   }
 
-  void listenRoom() {
+  Future<void> listenRoom() {
     if (_roomId != null) {
       roomListener ??= _firestore
           .collection('rooms')
           .doc(_roomId)
           .snapshots()
-          .listen((event) {
+          .listen((event) async {
         var data = event.data();
         if (data!.containsKey('initiator')) {
           var initiator = data['initiator'];
@@ -84,13 +85,14 @@ class _VideoChatScreenState extends State<VideoChatScreen> {
           } else {
             _isInitiator = false;
           }
-          offerOrAnswer(data);
+          await offerOrAnswer(data);
         }
       });
     }
+    return Future.value();
   }
 
-  void offerOrAnswer(Map<String, dynamic>? room) async {
+  Future<void> offerOrAnswer(Map<String, dynamic>? room) async {
     if (_isInitiator) {
       await _createOffer(room);
     } else {
@@ -137,7 +139,7 @@ class _VideoChatScreenState extends State<VideoChatScreen> {
     });
 
     _peerConnection?.onIceCandidate = (candidate) {
-      if (candidate != null && _roomId != null) {
+      if (_roomId != null) {
         _firestore
             .collection('rooms')
             .doc(_roomId)
@@ -161,7 +163,12 @@ class _VideoChatScreenState extends State<VideoChatScreen> {
       });
       userId = idController.text;
       ListenUser();
-      if (_roomId != null) return;
+      if (_roomId != null) {
+        setState(() {
+          isLoading = false;
+        });
+        return;
+      }
       final userQueueDocRef = _firestore.collection('queue').doc(userId);
       final userDocRef = _firestore.collection('users').doc(userId);
       final userqueueRef = _firestore.collection('queue').doc(userId);
@@ -236,6 +243,11 @@ class _VideoChatScreenState extends State<VideoChatScreen> {
       await _firestore.collection('rooms').doc(_roomId).set({
         'offer': description.toMap(),
       }, SetOptions(merge: true));
+    } else if (room.containsKey('answer')) {
+      final answerData = room['answer'];
+      webrtc.RTCSessionDescription answer =
+          webrtc.RTCSessionDescription(answerData['sdp'], answerData['type']);
+      await _peerConnection!.setRemoteDescription(answer);
     }
   }
 
