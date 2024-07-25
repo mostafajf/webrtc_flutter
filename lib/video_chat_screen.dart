@@ -99,24 +99,22 @@ class _VideoChatScreenState extends State<VideoChatScreen> {
   }
 
   void listenCandidates() {
-    if (candidatesListener != null && _roomId != null) {
-      candidatesListener = _firestore
-          .collection('rooms')
-          .doc(_roomId)
-          .collection('candidates')
-          .snapshots()
-          .listen((snapshot) {
-        for (var change in snapshot.docChanges) {
-          if (change.type == DocumentChangeType.added) {
-            var data = change.doc.data();
-            _peerConnection?.addCandidate(
-              webrtc.RTCIceCandidate(
-                  data!['candidate'], data['sdpMid'], data['sdpMLineIndex']),
-            );
-          }
+    candidatesListener ??= _firestore
+        .collection('rooms')
+        .doc(_roomId)
+        .collection('candidates')
+        .snapshots()
+        .listen((snapshot) {
+      for (var change in snapshot.docChanges) {
+        if (change.type == DocumentChangeType.added) {
+          var data = change.doc.data();
+          _peerConnection?.addCandidate(
+            webrtc.RTCIceCandidate(
+                data!['candidate'], data['sdpMid'], data['sdpMLineIndex']),
+          );
         }
-      });
-    }
+      }
+    });
   }
 
   Future<void> _createPeerConnection() async {
@@ -140,6 +138,7 @@ class _VideoChatScreenState extends State<VideoChatScreen> {
             .doc(_roomId)
             .collection('candidates')
             .add(candidate.toMap());
+        listenCandidates();
       }
     };
 
@@ -215,9 +214,6 @@ class _VideoChatScreenState extends State<VideoChatScreen> {
         transaction.delete(otherQueueUserDoc.reference);
         listenRoom();
       });
-      if (_roomId!.isNotEmpty) {
-        listenCandidates();
-      }
     } on NotMatchException catch (e) {
       await _findUser();
     } catch (e) {
