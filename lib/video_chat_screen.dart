@@ -21,7 +21,7 @@ class _VideoChatScreenState extends State<VideoChatScreen> {
   webrtc.RTCPeerConnection? _peerConnection;
   webrtc.MediaStream? _localStream;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  String? _roomId;
+  String _roomId = "";
   bool _isInitiator = false;
   var userId = Uuid().v4();
   TextEditingController idController = TextEditingController();
@@ -59,19 +59,21 @@ class _VideoChatScreenState extends State<VideoChatScreen> {
         .doc(userId)
         .snapshots()
         .listen((event) async {
-      var roomId = event.data()!['roomId'] ?? "";
-      if (!roomId!.isBlank) {
-        _roomId = roomId;
-        setState(() {
-          isLoading = false;
-        });
-        listenRoom();
+      if (event.exists) {
+        var user = event.data();
+        if (user!['roomId'] != null) {
+          _roomId = user['roomId'];
+          setState(() {
+            isLoading = false;
+          });
+          listenRoom();
+        }
       }
     });
   }
 
   Future<void> listenRoom() {
-    if (_roomId != null) {
+    if (_roomId.isNotEmpty) {
       roomListener ??= _firestore
           .collection('rooms')
           .doc(_roomId)
@@ -139,7 +141,7 @@ class _VideoChatScreenState extends State<VideoChatScreen> {
     });
 
     _peerConnection?.onIceCandidate = (candidate) {
-      if (_roomId != null) {
+      if (_roomId.isNotEmpty) {
         _firestore
             .collection('rooms')
             .doc(_roomId)
@@ -163,7 +165,7 @@ class _VideoChatScreenState extends State<VideoChatScreen> {
       });
       userId = idController.text;
       ListenUser();
-      if (_roomId != null) {
+      if (_roomId.isNotEmpty) {
         setState(() {
           isLoading = false;
         });
@@ -171,16 +173,12 @@ class _VideoChatScreenState extends State<VideoChatScreen> {
       }
       final userQueueDocRef = _firestore.collection('queue').doc(userId);
       final userDocRef = _firestore.collection('users').doc(userId);
-      final userqueueRef = _firestore.collection('queue').doc(userId);
 
       var timestamp = Timestamp.now();
       var userSnapshot = await userQueueDocRef.get();
-      if (!userSnapshot.exists) {
-        await userQueueDocRef
-            .set({'userId': userId, 'lastUpdatedAt': timestamp});
-      }
-      if (_roomId != null) return;
-      await userDocRef.set({'state': 'pending', 'roomId': ""});
+
+      if (_roomId.isNotEmpty) return;
+
       final findQuery = await _firestore
           .collection('queue')
           .orderBy('lastUpdatedAt')
@@ -188,6 +186,10 @@ class _VideoChatScreenState extends State<VideoChatScreen> {
           .limit(1)
           .get();
       if (findQuery.docs.isEmpty) {
+        if (!userSnapshot.exists && _roomId.isEmpty) {
+          await userQueueDocRef
+              .set({'userId': userId, 'lastUpdatedAt': timestamp});
+        }
         throw NotMatchException();
       }
       final queueDocs = findQuery.docs;
@@ -195,8 +197,8 @@ class _VideoChatScreenState extends State<VideoChatScreen> {
       final otherQueueUserDoc = queueDocs[0];
       final otherUser = otherQueueUserDoc.data();
       final otherUserId = otherQueueUserDoc.id;
-      Timestamp otherUserLastUpdatedAt = otherUser['lastUpdatedAt'];
-      if (timestamp.compareTo(otherUserLastUpdatedAt) < 0) {
+      // Timestamp otherUserLastUpdatedAt = otherUser['lastUpdatedAt'];
+      if (otherUser["userId"].toString().compareTo(userId) <= 0) {
         _isInitiator = true;
       } else {
         _isInitiator = false;
@@ -208,34 +210,34 @@ class _VideoChatScreenState extends State<VideoChatScreen> {
         final roomDocRef = _firestore.collection('rooms').doc(_roomId);
         final otherUserDocRef = _firestore.collection('users').doc(otherUserId);
         var otherUserQuery = await transaction.get(otherUserDocRef);
-        final otherUserState = otherUserQuery.data()!['state'];
-        if (otherUserState == 'busy') {
-          if (_roomId != null) return;
+        if (otherUserQuery.exists) {
+          final otherUserState = otherUserQuery.data()!['status'];
+          if (otherUserState == 'busy') {
+            if (_roomId.isNotEmpty) return;
 
-          throw NotMatchException();
+            throw NotMatchException();
+          }
         }
         transaction.set(roomDocRef, {
           'initiator': _isInitiator ? userId : otherUserId,
           'receiver': _isInitiator ? otherUserId : userId,
         });
         transaction.set(userDocRef,
-            {'state': 'busy', "roomId": _roomId, "initiator": _isInitiator});
+            {'status': 'busy', "roomId": _roomId, "initiator": _isInitiator});
         transaction.set(otherUserDocRef,
-            {'state': 'busy', "roomId": _roomId, "initiator": !_isInitiator});
-        transaction.delete(userqueueRef);
+            {'status': 'busy', "roomId": _roomId, "initiator": !_isInitiator});
+        transaction.delete(userQueueDocRef);
         transaction.delete(otherQueueUserDoc.reference);
         listenRoom();
-      });
+      }, timeout: Duration(seconds: 90));
     } on NotMatchException catch (e) {
       await _findUser();
-    } catch (e) {
+    } catch (e, stackTrace) {
       print(e);
     }
   }
 
   Future<void> _createOffer(Map<String, dynamic>? room) async {
-    Get.snackbar("title", "message");
-
     if (!room!.containsKey('offer')) {
       webrtc.RTCSessionDescription description =
           await _peerConnection!.createOffer({'offerToReceiveVideo': 1});
@@ -252,7 +254,7 @@ class _VideoChatScreenState extends State<VideoChatScreen> {
   }
 
   Future<void> _joinRoom(Map<String, dynamic>? room) async {
-    if (_roomId != null) {
+    if (_roomId.isNotEmpty) {
       if (!room!.containsKey('answer')) {
         if (room.containsKey('offer')) {
           final offerData = room['offer'];
