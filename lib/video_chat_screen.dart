@@ -29,6 +29,7 @@ class _VideoChatScreenState extends State<VideoChatScreen> {
   StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? candidatesListener;
   StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? roomListener;
   bool isLoading = false;
+  bool isExpanded = true;
   @override
   void initState() {
     super.initState();
@@ -275,16 +276,52 @@ class _VideoChatScreenState extends State<VideoChatScreen> {
     }
   }
 
+  void _toggleExpand() {
+    setState(() {
+      isExpanded = !isExpanded;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
+    return Stack(
+      children: [
+        AnimatedPositioned(
+          duration: Duration(milliseconds: 500),
+          top: 0,
+          right: 0,
+          left: isExpanded ? 0 : MediaQuery.of(context).size.width / 1.3,
+          bottom: isExpanded ? 0 : MediaQuery.of(context).size.height / 1.5,
+          child: GestureDetector(
+            onTap: _toggleExpand,
+            child: Container(
+              color: Colors.black,
+              child: Expanded(child: webrtc.RTCVideoView(_localRenderer)),
+            ),
+          ),
+        ),
+        AnimatedPositioned(
+          duration: Duration(milliseconds: 500),
+          top: 0,
+          right: 0,
+          left: !isExpanded ? 0 : MediaQuery.of(context).size.width / 1.3,
+          bottom: !isExpanded ? 0 : MediaQuery.of(context).size.height / 1.5,
+          child: GestureDetector(
+            onTap: _toggleExpand,
+            child: Container(
+              color: Colors.blue,
+              child: Expanded(child: webrtc.RTCVideoView(_remoteRenderer)),
+            ),
+          ),
+        ),
+      ],
+    );
     return Scaffold(
       appBar: AppBar(title: Text('Video Chat')),
-      body: Column(
+      body: Stack(
         children: [
-          Expanded(
-            child: webrtc.RTCVideoView(_localRenderer),
-          ),
-          Expanded(
+          webrtc.RTCVideoView(_localRenderer),
+          Positioned(
             child: webrtc.RTCVideoView(_remoteRenderer),
           ),
           TextField(controller: idController),
