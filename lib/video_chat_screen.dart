@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart' as webrtc;
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -20,6 +21,7 @@ class _VideoChatScreenState extends State<VideoChatScreen> {
   String _roomId = "";
   bool _isInitiator = false;
   var userId = Uuid().v4();
+  String otherUserId = "";
   TextEditingController idController = TextEditingController();
   StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? userListener;
   StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? candidatesListener;
@@ -180,7 +182,7 @@ class _VideoChatScreenState extends State<VideoChatScreen> {
           .collection('queue')
           .orderBy('lastUpdatedAt')
           .where("userId", isNotEqualTo: userId)
-          .limit(1)
+          .limit(10)
           .get();
       if (findQuery.docs.isEmpty) {
         if (!userSnapshot.exists && _roomId.isEmpty) {
@@ -191,9 +193,10 @@ class _VideoChatScreenState extends State<VideoChatScreen> {
       }
       final queueDocs = findQuery.docs;
 
-      final otherQueueUserDoc = queueDocs[0];
+      var randomIndex = Random().nextInt(queueDocs.length);
+      final otherQueueUserDoc = queueDocs[randomIndex];
       final otherUser = otherQueueUserDoc.data();
-      final otherUserId = otherQueueUserDoc.id;
+      otherUserId = otherQueueUserDoc.id;
       // Timestamp otherUserLastUpdatedAt = otherUser['lastUpdatedAt'];
       if (otherUser["userId"].toString().compareTo(userId) <= 0) {
         _isInitiator = true;
@@ -292,13 +295,20 @@ class _VideoChatScreenState extends State<VideoChatScreen> {
           ],
           Column(
             children: [
-              TextField(controller: idController),
+              TextField(
+                controller: idController,
+                style: TextStyle(color: Colors.white),
+              ),
               isLoading
                   ? CircularProgressIndicator()
                   : ElevatedButton(
                       onPressed: _findUser,
                       child: Text('Find User'),
                     ),
+              Text(
+                otherUserId,
+                style: TextStyle(color: Colors.white, fontSize: 20),
+              )
             ],
           )
         ],
