@@ -156,6 +156,9 @@ class _VideoChatScreenState extends State<VideoChatScreen> {
     };
 
     _peerConnection?.addStream(_localStream!);
+    _peerConnection?.onSignalingState = (state) {
+      print('onSignalingState: $state');
+    };
   }
 
   Future<void> _findUser() async {
