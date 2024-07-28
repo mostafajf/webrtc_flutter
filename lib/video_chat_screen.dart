@@ -280,36 +280,27 @@ class _VideoChatScreenState extends State<VideoChatScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Stack(
-      children: isExpanded
-          ? [
-              LargePositionedVideo(
-                  context, webrtc.RTCVideoView(_localRenderer)),
-              SmallPositionedVideo(
-                  context, webrtc.RTCVideoView(_remoteRenderer)),
-            ]
-          : [
-              LargePositionedVideo(
-                  context, webrtc.RTCVideoView(_remoteRenderer)),
-              SmallPositionedVideo(
-                  context, webrtc.RTCVideoView(_localRenderer)),
-            ],
-    );
-    return Scaffold(
-      appBar: AppBar(title: Text('Video Chat')),
-      body: Stack(
+    return Material(
+      child: Stack(
         children: [
-          webrtc.RTCVideoView(_localRenderer),
-          Positioned(
-            child: webrtc.RTCVideoView(_remoteRenderer),
-          ),
-          TextField(controller: idController),
-          isLoading
-              ? CircularProgressIndicator()
-              : ElevatedButton(
-                  onPressed: _findUser,
-                  child: Text('Find User'),
-                ),
+          if (isExpanded) ...[
+            LargePositionedVideo(context, webrtc.RTCVideoView(_localRenderer)),
+            SmallPositionedVideo(context, webrtc.RTCVideoView(_remoteRenderer)),
+          ] else ...[
+            LargePositionedVideo(context, webrtc.RTCVideoView(_remoteRenderer)),
+            SmallPositionedVideo(context, webrtc.RTCVideoView(_localRenderer)),
+          ],
+          Column(
+            children: [
+              TextField(controller: idController),
+              isLoading
+                  ? CircularProgressIndicator()
+                  : ElevatedButton(
+                      onPressed: _findUser,
+                      child: Text('Find User'),
+                    ),
+            ],
+          )
         ],
       ),
     );
