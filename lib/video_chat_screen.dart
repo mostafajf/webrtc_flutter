@@ -85,6 +85,7 @@ class _VideoChatScreenState extends State<VideoChatScreen> {
             _isInitiator = true;
           } else {
             _isInitiator = false;
+            otherUserId = initiator;
           }
           await offerOrAnswer(data);
         }
@@ -197,6 +198,8 @@ class _VideoChatScreenState extends State<VideoChatScreen> {
       final otherQueueUserDoc = queueDocs[randomIndex];
       final otherUser = otherQueueUserDoc.data();
       otherUserId = otherQueueUserDoc.id;
+      final otherUserDocRef = _firestore.collection('users').doc(otherUserId);
+
       // Timestamp otherUserLastUpdatedAt = otherUser['lastUpdatedAt'];
       if (otherUser["userId"].toString().compareTo(userId) <= 0) {
         _isInitiator = true;
@@ -208,7 +211,6 @@ class _VideoChatScreenState extends State<VideoChatScreen> {
         userIds.sort();
         _roomId = userIds.join('_');
         final roomDocRef = _firestore.collection('rooms').doc(_roomId);
-        final otherUserDocRef = _firestore.collection('users').doc(otherUserId);
         var otherUserQuery = await transaction.get(otherUserDocRef);
         if (otherUserQuery.exists) {
           final otherUserState = otherUserQuery.data()!['status'];
@@ -218,16 +220,19 @@ class _VideoChatScreenState extends State<VideoChatScreen> {
             throw NotMatchException();
           }
         }
-        transaction.set(roomDocRef, {
+        var batch = _firestore.batch();
+        batch.set(roomDocRef, {
           'initiator': _isInitiator ? userId : otherUserId,
           'receiver': _isInitiator ? otherUserId : userId,
         });
-        transaction.set(userDocRef,
+
+        batch.set(userDocRef,
             {'status': 'busy', "roomId": _roomId, "initiator": _isInitiator});
-        transaction.set(otherUserDocRef,
+        batch.set(otherUserDocRef,
             {'status': 'busy', "roomId": _roomId, "initiator": !_isInitiator});
-        transaction.delete(userQueueDocRef);
-        transaction.delete(otherQueueUserDoc.reference);
+        batch.delete(userQueueDocRef);
+        batch.delete(otherQueueUserDoc.reference);
+        await batch.commit();
         listenRoom();
       }, timeout: Duration(seconds: 90));
     } on NotMatchException catch (e) {
