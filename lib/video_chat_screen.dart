@@ -1,16 +1,12 @@
 import 'dart:async';
-
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart' as webrtc;
-import 'package:firebase_core/firebase_core.dart';
-
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:get/get.dart';
-import 'package:get/route_manager.dart';
 import 'package:uuid/uuid.dart';
 
 class VideoChatScreen extends StatefulWidget {
+  const VideoChatScreen({Key? key}) : super(key: key);
+
   @override
   _VideoChatScreenState createState() => _VideoChatScreenState();
 }
@@ -285,36 +281,19 @@ class _VideoChatScreenState extends State<VideoChatScreen> {
   @override
   Widget build(BuildContext context) {
     return Stack(
-      children: [
-        AnimatedPositioned(
-          duration: Duration(milliseconds: 500),
-          top: 0,
-          right: 0,
-          left: isExpanded ? 0 : MediaQuery.of(context).size.width / 1.3,
-          bottom: isExpanded ? 0 : MediaQuery.of(context).size.height / 1.5,
-          child: GestureDetector(
-            onTap: _toggleExpand,
-            child: Container(
-              color: Colors.black,
-              child: Expanded(child: webrtc.RTCVideoView(_localRenderer)),
-            ),
-          ),
-        ),
-        AnimatedPositioned(
-          duration: Duration(milliseconds: 500),
-          top: 0,
-          right: 0,
-          left: !isExpanded ? 0 : MediaQuery.of(context).size.width / 1.3,
-          bottom: !isExpanded ? 0 : MediaQuery.of(context).size.height / 1.5,
-          child: GestureDetector(
-            onTap: _toggleExpand,
-            child: Container(
-              color: Colors.blue,
-              child: Expanded(child: webrtc.RTCVideoView(_remoteRenderer)),
-            ),
-          ),
-        ),
-      ],
+      children: isExpanded
+          ? [
+              LargePositionedVideo(
+                  context, webrtc.RTCVideoView(_localRenderer)),
+              SmallPositionedVideo(
+                  context, webrtc.RTCVideoView(_remoteRenderer)),
+            ]
+          : [
+              LargePositionedVideo(
+                  context, webrtc.RTCVideoView(_remoteRenderer)),
+              SmallPositionedVideo(
+                  context, webrtc.RTCVideoView(_localRenderer)),
+            ],
     );
     return Scaffold(
       appBar: AppBar(title: Text('Video Chat')),
@@ -333,6 +312,33 @@ class _VideoChatScreenState extends State<VideoChatScreen> {
                 ),
         ],
       ),
+    );
+  }
+
+  AnimatedPositioned SmallPositionedVideo(BuildContext context, Widget widget) {
+    return AnimatedPositioned(
+      duration: Duration(milliseconds: 500),
+      top: 0,
+      right: 0,
+      left: MediaQuery.of(context).size.width / 1.3,
+      bottom: MediaQuery.of(context).size.height / 1.5,
+      child: GestureDetector(
+        onTap: _toggleExpand,
+        child: AbsorbPointer(
+            child:
+                Container(color: Colors.black, child: Expanded(child: widget))),
+      ),
+    );
+  }
+
+  AnimatedPositioned LargePositionedVideo(BuildContext context, Widget widget) {
+    return AnimatedPositioned(
+      duration: Duration(milliseconds: 500),
+      top: 0,
+      right: 0,
+      left: 0,
+      bottom: 0,
+      child: Container(color: Colors.black, child: Expanded(child: widget)),
     );
   }
 }
