@@ -12,7 +12,8 @@ class VideoChatScreen extends StatefulWidget {
   _VideoChatScreenState createState() => _VideoChatScreenState();
 }
 
-class _VideoChatScreenState extends State<VideoChatScreen> {
+class _VideoChatScreenState extends State<VideoChatScreen>
+    with WidgetsBindingObserver {
   final webrtc.RTCVideoRenderer _localRenderer = webrtc.RTCVideoRenderer();
   final webrtc.RTCVideoRenderer _remoteRenderer = webrtc.RTCVideoRenderer();
   webrtc.RTCPeerConnection? _peerConnection;
@@ -28,11 +29,13 @@ class _VideoChatScreenState extends State<VideoChatScreen> {
   StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? roomListener;
   bool isLoading = false;
   bool isExpanded = true;
+  AppLifecycleState? lifecycleState;
   @override
   void initState() {
     super.initState();
     _initializeRenderers();
     _createPeerConnection();
+    WidgetsBinding.instance.addObserver(this);
   }
 
   @override
@@ -44,6 +47,13 @@ class _VideoChatScreenState extends State<VideoChatScreen> {
     candidatesListener?.cancel();
     roomListener?.cancel();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    setState(() {
+      lifecycleState = state;
+    });
   }
 
   Future<void> _initializeRenderers() async {
@@ -283,6 +293,20 @@ class _VideoChatScreenState extends State<VideoChatScreen> {
     }
   }
 
+  Future<void> restartProcess() {
+    var batch = _firestore.batch();
+    final userDocRef = _firestore.collection('users').doc(userId);
+    final otherUserDocRef = _firestore.collection('users').doc(otherUserId);
+    final roomDocRef = _firestore.collection('rooms').doc(_roomId);
+
+    batch.set(userDocRef, {'status': 'free'}, SetOptions(merge: true));
+    batch.set(otherUserDocRef, {'status': 'free'}, SetOptions(merge: true));
+    batch.delete(roomDocRef);
+    _roomId = "";
+    _remoteRenderer.srcObject = null;
+    return batch.commit();
+  }
+
   void _toggleExpand() {
     setState(() {
       isExpanded = !isExpanded;
@@ -316,7 +340,9 @@ class _VideoChatScreenState extends State<VideoChatScreen> {
               Text(
                 otherUserId,
                 style: const TextStyle(color: Colors.white, fontSize: 20),
-              )
+              ),
+              Text(lifecycleState.toString(),
+                  style: const TextStyle(color: Colors.white)),
             ],
           )
         ],
