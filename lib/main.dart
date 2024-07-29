@@ -1,13 +1,11 @@
 import 'dart:async';
-import 'dart:convert';
 
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_webrtc/flutter_webrtc.dart';
+
 import 'package:get/get.dart';
-import 'package:sdp_transform/sdp_transform.dart';
+
 import 'package:firebase_core/firebase_core.dart';
-import 'package:uuid/uuid.dart';
+
 import 'package:webrtc_flutter/video_chat_screen.dart';
 import 'firebase_options.dart';
 
@@ -54,7 +52,7 @@ class MyApp extends StatelessWidget {
       theme: ThemeData(
         primarySwatch: Colors.blue,
       ),
-      home: VideoChatScreen(),
+      home: const VideoChatScreen(),
     );
   }
 }

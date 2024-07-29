@@ -20,7 +20,7 @@ class _VideoChatScreenState extends State<VideoChatScreen> {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   String _roomId = "";
   bool _isInitiator = false;
-  var userId = Uuid().v4();
+  var userId = const Uuid().v4();
   String otherUserId = "";
   TextEditingController idController = TextEditingController();
   StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? userListener;
@@ -52,7 +52,7 @@ class _VideoChatScreenState extends State<VideoChatScreen> {
     // await _findUser();
   }
 
-  void ListenUser() async {
+  void listenUser() async {
     userListener ??= _firestore
         .collection('users')
         .doc(userId)
@@ -167,7 +167,7 @@ class _VideoChatScreenState extends State<VideoChatScreen> {
         isLoading = true;
       });
       userId = idController.text;
-      ListenUser();
+      listenUser();
       if (_roomId.isNotEmpty) {
         setState(() {
           isLoading = false;
@@ -237,10 +237,10 @@ class _VideoChatScreenState extends State<VideoChatScreen> {
         batch.delete(otherQueueUserDoc.reference);
         await batch.commit();
         listenRoom();
-      }, timeout: Duration(seconds: 90));
+      }, timeout: const Duration(seconds: 90));
     } on NotMatchException catch (e) {
       await _findUser();
-    } catch (e, stackTrace) {
+    } catch (e) {
       print(e);
     }
   }
@@ -295,27 +295,27 @@ class _VideoChatScreenState extends State<VideoChatScreen> {
       child: Stack(
         children: [
           if (isExpanded) ...[
-            LargePositionedVideo(context, webrtc.RTCVideoView(_localRenderer)),
-            SmallPositionedVideo(context, webrtc.RTCVideoView(_remoteRenderer)),
+            largePositionedVideo(context, webrtc.RTCVideoView(_localRenderer)),
+            smallPositionedVideo(context, webrtc.RTCVideoView(_remoteRenderer)),
           ] else ...[
-            LargePositionedVideo(context, webrtc.RTCVideoView(_remoteRenderer)),
-            SmallPositionedVideo(context, webrtc.RTCVideoView(_localRenderer)),
+            largePositionedVideo(context, webrtc.RTCVideoView(_remoteRenderer)),
+            smallPositionedVideo(context, webrtc.RTCVideoView(_localRenderer)),
           ],
           Column(
             children: [
               TextField(
                 controller: idController,
-                style: TextStyle(color: Colors.white),
+                style: const TextStyle(color: Colors.white),
               ),
               isLoading
-                  ? CircularProgressIndicator()
+                  ? const CircularProgressIndicator()
                   : ElevatedButton(
                       onPressed: _findUser,
-                      child: Text('Find User'),
+                      child: const Text('Find User'),
                     ),
               Text(
                 otherUserId,
-                style: TextStyle(color: Colors.white, fontSize: 20),
+                style: const TextStyle(color: Colors.white, fontSize: 20),
               )
             ],
           )
@@ -324,9 +324,9 @@ class _VideoChatScreenState extends State<VideoChatScreen> {
     );
   }
 
-  AnimatedPositioned SmallPositionedVideo(BuildContext context, Widget widget) {
+  AnimatedPositioned smallPositionedVideo(BuildContext context, Widget widget) {
     return AnimatedPositioned(
-      duration: Duration(milliseconds: 500),
+      duration: const Duration(milliseconds: 500),
       top: 0,
       right: 0,
       left: MediaQuery.of(context).size.width / 1.3,
@@ -340,9 +340,9 @@ class _VideoChatScreenState extends State<VideoChatScreen> {
     );
   }
 
-  AnimatedPositioned LargePositionedVideo(BuildContext context, Widget widget) {
+  AnimatedPositioned largePositionedVideo(BuildContext context, Widget widget) {
     return AnimatedPositioned(
-      duration: Duration(milliseconds: 500),
+      duration: const Duration(milliseconds: 500),
       top: 0,
       right: 0,
       left: 0,
