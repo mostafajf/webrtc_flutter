@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart' as webrtc;
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:uuid/uuid.dart';
 
 class VideoChatScreen extends StatefulWidget {
@@ -51,9 +52,10 @@ class _VideoChatScreenState extends State<VideoChatScreen>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    setState(() {
-      lifecycleState = state;
-    });
+    if (state == AppLifecycleState.detached) {
+      // restartProcess();
+    }
+    setState(() {});
   }
 
   Future<void> _initializeRenderers() async {
@@ -169,6 +171,20 @@ class _VideoChatScreenState extends State<VideoChatScreen>
     _peerConnection?.onSignalingState = (state) {
       print('onSignalingState: $state');
     };
+    // Listen for connection state changes
+    _peerConnection?.onIceConnectionState = (RTCIceConnectionState state) {
+      print('ICE connection state: $state');
+      if (state == RTCIceConnectionState.RTCIceConnectionStateDisconnected ||
+          state == RTCIceConnectionState.RTCIceConnectionStateFailed ||
+          state == RTCIceConnectionState.RTCIceConnectionStateClosed) {}
+    };
+
+    _peerConnection?.onConnectionState = (RTCPeerConnectionState state) {
+      print('Peer connection state: $state');
+      if (state == RTCPeerConnectionState.RTCPeerConnectionStateDisconnected ||
+          state == RTCPeerConnectionState.RTCPeerConnectionStateFailed ||
+          state == RTCPeerConnectionState.RTCPeerConnectionStateClosed) {}
+    };
   }
 
   Future<void> _findUser() async {
@@ -188,14 +204,17 @@ class _VideoChatScreenState extends State<VideoChatScreen>
       final userDocRef = _firestore.collection('users').doc(userId);
 
       var timestamp = Timestamp.now();
+      // skip old users
+      var recentTimestamp = Timestamp.fromDate(
+          timestamp.toDate().subtract(const Duration(seconds: 20)));
       var userSnapshot = await userQueueDocRef.get();
-
       if (_roomId.isNotEmpty) return;
 
       final findQuery = await _firestore
           .collection('queue')
           .orderBy('lastUpdatedAt')
           .where("userId", isNotEqualTo: userId)
+          .where("lastUpdatedAt", isGreaterThan: recentTimestamp)
           .limit(10)
           .get();
       if (findQuery.docs.isEmpty) {
@@ -304,6 +323,8 @@ class _VideoChatScreenState extends State<VideoChatScreen>
     batch.delete(roomDocRef);
     _roomId = "";
     _remoteRenderer.srcObject = null;
+    roomListener?.cancel();
+    roomListener = null;
     return batch.commit();
   }
 
