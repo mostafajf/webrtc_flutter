@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:developer';
 import 'dart:math';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart' as webrtc;
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -39,6 +40,8 @@ class _VideoChatScreenState extends State<VideoChatScreen>
     _initializeRenderers();
     _createPeerConnection();
     WidgetsBinding.instance.addObserver(this);
+    var countryCode = PlatformDispatcher.instance.locale.countryCode;
+    developer.log('countryCode: $countryCode');
   }
 
   @override
