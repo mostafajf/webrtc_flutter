@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 
 import 'package:get/get.dart';
 
@@ -10,6 +11,7 @@ import 'package:webrtc_flutter/video_chat_screen.dart';
 import 'firebase_options.dart';
 
 void main() async {
+  // debugPaintSizeEnabled = true;
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );

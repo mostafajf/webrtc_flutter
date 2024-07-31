@@ -1,10 +1,12 @@
 import 'dart:async';
+import 'dart:developer';
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart' as webrtc;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:uuid/uuid.dart';
+import 'dart:developer' as developer;
 
 class VideoChatScreen extends StatefulWidget {
   const VideoChatScreen({Key? key}) : super(key: key);
@@ -78,6 +80,8 @@ class _VideoChatScreenState extends State<VideoChatScreen>
             isLoading = false;
           });
           listenRoom();
+        } else {
+          _roomId = "";
         }
       }
     });
@@ -100,6 +104,7 @@ class _VideoChatScreenState extends State<VideoChatScreen>
             otherUserId = initiator;
           }
           await offerOrAnswer(data);
+          setState(() {});
         }
       });
     }
@@ -169,21 +174,24 @@ class _VideoChatScreenState extends State<VideoChatScreen>
 
     _peerConnection?.addStream(_localStream!);
     _peerConnection?.onSignalingState = (state) {
-      print('onSignalingState: $state');
+      developer.log('onSignalingState: $state');
     };
     // Listen for connection state changes
     _peerConnection?.onIceConnectionState = (RTCIceConnectionState state) {
-      print('ICE connection state: $state');
       if (state == RTCIceConnectionState.RTCIceConnectionStateDisconnected ||
           state == RTCIceConnectionState.RTCIceConnectionStateFailed ||
-          state == RTCIceConnectionState.RTCIceConnectionStateClosed) {}
+          state == RTCIceConnectionState.RTCIceConnectionStateClosed) {
+        debugger();
+        developer.log('ICE connection state: $state');
+      }
     };
 
     _peerConnection?.onConnectionState = (RTCPeerConnectionState state) {
-      print('Peer connection state: $state');
       if (state == RTCPeerConnectionState.RTCPeerConnectionStateDisconnected ||
           state == RTCPeerConnectionState.RTCPeerConnectionStateFailed ||
-          state == RTCPeerConnectionState.RTCPeerConnectionStateClosed) {}
+          state == RTCPeerConnectionState.RTCPeerConnectionStateClosed) {
+        developer.log('Peer connection state: $state');
+      }
     };
   }
 
@@ -318,8 +326,10 @@ class _VideoChatScreenState extends State<VideoChatScreen>
     final otherUserDocRef = _firestore.collection('users').doc(otherUserId);
     final roomDocRef = _firestore.collection('rooms').doc(_roomId);
 
-    batch.set(userDocRef, {'status': 'free'}, SetOptions(merge: true));
-    batch.set(otherUserDocRef, {'status': 'free'}, SetOptions(merge: true));
+    batch.set(userDocRef, {'status': 'free', 'roomId': null},
+        SetOptions(merge: true));
+    batch.set(otherUserDocRef, {'status': 'free', 'roomId': null},
+        SetOptions(merge: true));
     batch.delete(roomDocRef);
     _roomId = "";
     _remoteRenderer.srcObject = null;
