@@ -215,69 +215,16 @@ class _VideoChatScreenState extends State<VideoChatScreen>
       final userDocRef = _firestore.collection('users').doc(userId);
 
       var timestamp = Timestamp.now();
-      // skip old users
-      var recentTimestamp = Timestamp.fromDate(
-          timestamp.toDate().subtract(const Duration(seconds: 20)));
-      var userSnapshot = await userQueueDocRef.get();
+
       if (_roomId.isNotEmpty) return;
 
-      final findQuery = await _firestore
-          .collection('queue')
-          .orderBy('lastUpdatedAt')
-          .where("userId", isNotEqualTo: userId)
-          .where("lastUpdatedAt", isGreaterThan: recentTimestamp)
-          .limit(10)
-          .get();
-      if (findQuery.docs.isEmpty) {
-        if (!userSnapshot.exists && _roomId.isEmpty) {
-          await userQueueDocRef
-              .set({'userId': userId, 'lastUpdatedAt': timestamp});
-        }
-        throw NotMatchException();
+      if (!userSnapshot.exists && _roomId.isEmpty) {
+        await userQueueDocRef
+            .set({'userId': userId, 'lastUpdatedAt': timestamp});
       }
-      final queueDocs = findQuery.docs;
 
-      var randomIndex = Random().nextInt(queueDocs.length);
-      final otherQueueUserDoc = queueDocs[randomIndex];
-      final otherUser = otherQueueUserDoc.data();
       otherUserId = otherQueueUserDoc.id;
       final otherUserDocRef = _firestore.collection('users').doc(otherUserId);
-
-      // Timestamp otherUserLastUpdatedAt = otherUser['lastUpdatedAt'];
-      if (otherUser["userId"].toString().compareTo(userId) <= 0) {
-        _isInitiator = true;
-      } else {
-        _isInitiator = false;
-      }
-      await _firestore.runTransaction((transaction) async {
-        final userIds = [userId, otherUserId];
-        userIds.sort();
-        _roomId = userIds.join('_');
-        final roomDocRef = _firestore.collection('rooms').doc(_roomId);
-        var otherUserQuery = await transaction.get(otherUserDocRef);
-        if (otherUserQuery.exists) {
-          final otherUserState = otherUserQuery.data()!['status'];
-          if (otherUserState == 'busy') {
-            if (_roomId.isNotEmpty) return;
-
-            throw NotMatchException();
-          }
-        }
-        var batch = _firestore.batch();
-        batch.set(roomDocRef, {
-          'initiator': _isInitiator ? userId : otherUserId,
-          'receiver': _isInitiator ? otherUserId : userId,
-        });
-
-        batch.set(userDocRef,
-            {'status': 'busy', "roomId": _roomId, "initiator": _isInitiator});
-        batch.set(otherUserDocRef,
-            {'status': 'busy', "roomId": _roomId, "initiator": !_isInitiator});
-        batch.delete(userQueueDocRef);
-        batch.delete(otherQueueUserDoc.reference);
-        await batch.commit();
-        listenRoom();
-      }, timeout: const Duration(seconds: 90));
     } on NotMatchException catch (e) {
       await _findUser();
     } catch (e) {
