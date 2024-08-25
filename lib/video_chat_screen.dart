@@ -107,7 +107,9 @@ class _VideoChatScreenState extends State<VideoChatScreen>
             otherUserId = initiator;
           }
           await offerOrAnswer(data);
-          setState(() {});
+          setState(() {
+            isLoading = false;
+          });
         }
       });
     }
@@ -205,26 +207,10 @@ class _VideoChatScreenState extends State<VideoChatScreen>
       });
       userId = idController.text;
       listenUser();
-      if (_roomId.isNotEmpty) {
-        setState(() {
-          isLoading = false;
-        });
-        return;
-      }
+
       final userQueueDocRef = _firestore.collection('queue').doc(userId);
-      final userDocRef = _firestore.collection('users').doc(userId);
-
       var timestamp = Timestamp.now();
-
-      if (_roomId.isNotEmpty) return;
-
-      if (!userSnapshot.exists && _roomId.isEmpty) {
-        await userQueueDocRef
-            .set({'userId': userId, 'lastUpdatedAt': timestamp});
-      }
-
-      otherUserId = otherQueueUserDoc.id;
-      final otherUserDocRef = _firestore.collection('users').doc(otherUserId);
+      await userQueueDocRef.set({'userId': userId, 'lastUpdatedAt': timestamp});
     } on NotMatchException catch (e) {
       await _findUser();
     } catch (e) {
