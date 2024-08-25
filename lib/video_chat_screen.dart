@@ -34,6 +34,7 @@ class _VideoChatScreenState extends State<VideoChatScreen>
   bool isLoading = false;
   bool isExpanded = true;
   AppLifecycleState? lifecycleState;
+  final numOfBatches = 1;
   @override
   void initState() {
     super.initState();
@@ -71,7 +72,7 @@ class _VideoChatScreenState extends State<VideoChatScreen>
 
   void listenUser() async {
     userListener ??= _firestore
-        .collection('users')
+        .collection('Users')
         .doc(userId)
         .snapshots()
         .listen((event) async {
@@ -93,7 +94,7 @@ class _VideoChatScreenState extends State<VideoChatScreen>
   Future<void> listenRoom() {
     if (_roomId.isNotEmpty) {
       roomListener ??= _firestore
-          .collection('rooms')
+          .collection('Rooms')
           .doc(_roomId)
           .snapshots()
           .listen((event) async {
@@ -126,7 +127,7 @@ class _VideoChatScreenState extends State<VideoChatScreen>
 
   void listenCandidates() {
     candidatesListener ??= _firestore
-        .collection('rooms')
+        .collection('Rooms')
         .doc(_roomId)
         .collection('candidates')
         .snapshots()
@@ -165,7 +166,7 @@ class _VideoChatScreenState extends State<VideoChatScreen>
     _peerConnection?.onIceCandidate = (candidate) {
       if (_roomId.isNotEmpty) {
         _firestore
-            .collection('rooms')
+            .collection('Rooms')
             .doc(_roomId)
             .collection('candidates')
             .add(candidate.toMap());
@@ -207,8 +208,12 @@ class _VideoChatScreenState extends State<VideoChatScreen>
       });
       userId = idController.text;
       listenUser();
-
-      final userQueueDocRef = _firestore.collection('queue').doc(userId);
+      final randomBtach = Random().nextInt(numOfBatches) + 1;
+      final userQueueDocRef = _firestore
+          .collection("Batches")
+          .doc("batch$randomBtach")
+          .collection('Queue')
+          .doc(userId);
       var timestamp = Timestamp.now();
       await userQueueDocRef.set({'userId': userId, 'lastUpdatedAt': timestamp});
     } on NotMatchException catch (e) {
@@ -223,7 +228,7 @@ class _VideoChatScreenState extends State<VideoChatScreen>
       webrtc.RTCSessionDescription description =
           await _peerConnection!.createOffer({'offerToReceiveVideo': 1});
       await _peerConnection!.setLocalDescription(description);
-      await _firestore.collection('rooms').doc(_roomId).set({
+      await _firestore.collection('Rooms').doc(_roomId).set({
         'offer': description.toMap(),
       }, SetOptions(merge: true));
     } else if (room.containsKey('answer')) {
@@ -247,7 +252,7 @@ class _VideoChatScreenState extends State<VideoChatScreen>
               await _peerConnection!.createAnswer({'offerToReceiveVideo': 1});
           await _peerConnection!.setLocalDescription(description);
 
-          _firestore.collection('rooms').doc(_roomId).set({
+          _firestore.collection('Rooms').doc(_roomId).set({
             'answer': description.toMap(),
           }, SetOptions(merge: true));
           setState(() {});
@@ -258,9 +263,9 @@ class _VideoChatScreenState extends State<VideoChatScreen>
 
   Future<void> restartProcess() {
     var batch = _firestore.batch();
-    final userDocRef = _firestore.collection('users').doc(userId);
-    final otherUserDocRef = _firestore.collection('users').doc(otherUserId);
-    final roomDocRef = _firestore.collection('rooms').doc(_roomId);
+    final userDocRef = _firestore.collection('Users').doc(userId);
+    final otherUserDocRef = _firestore.collection('Users').doc(otherUserId);
+    final roomDocRef = _firestore.collection('Rooms').doc(_roomId);
 
     batch.set(userDocRef, {'status': 'free', 'roomId': null},
         SetOptions(merge: true));
