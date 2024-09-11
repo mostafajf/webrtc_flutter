@@ -4,20 +4,15 @@ class PresenceService {
   final DatabaseReference presenceRef =
       FirebaseDatabase.instance.ref().child('presence');
   DatabaseReference? sessionRef;
-  void setUserOnline(String userId) {
-    var elRef = presenceRef.child(userId).push();
-    sessionRef = elRef;
-    elRef.child(userId).onDisconnect().remove();
+  Future<void> setUserOnline(String userId) async {
+    await presenceRef.child(userId).set({
+      'state': 'online',
+      'last_changed': ServerValue.timestamp,
+    });
+    presenceRef.child(userId).onDisconnect().remove();
   }
 
-  void setUserOffline(String userId) {
-    sessionRef?.remove();
-  }
-
-  Stream<bool> isUserOnline(String userId) {
-    return presenceRef
-        .child(userId)
-        .onValue
-        .map((event) => event.snapshot.value == true);
+  Future<void> setUserOffline(String userId) async {
+    await presenceRef.child(userId).remove();
   }
 }

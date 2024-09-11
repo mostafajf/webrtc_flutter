@@ -9,6 +9,8 @@ import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:uuid/uuid.dart';
 import 'dart:developer' as developer;
 
+import 'package:webrtc_flutter/presence_service.dart';
+
 class VideoChatScreen extends StatefulWidget {
   const VideoChatScreen({Key? key}) : super(key: key);
 
@@ -29,17 +31,18 @@ class _VideoChatScreenState extends State<VideoChatScreen>
   String otherUserId = "";
   TextEditingController idController = TextEditingController();
   StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? userListener;
+  StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? otherListener;
   StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? candidatesListener;
   StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? roomListener;
   bool isLoading = false;
   bool isExpanded = true;
   AppLifecycleState? lifecycleState;
   final numOfBatches = 1;
+  PresenceService presenceService = PresenceService();
   @override
   void initState() {
     super.initState();
     _initializeRenderers();
-    _createPeerConnection();
     WidgetsBinding.instance.addObserver(this);
     var countryCode = PlatformDispatcher.instance.locale.countryCode;
     developer.log('countryCode: $countryCode');
@@ -51,6 +54,7 @@ class _VideoChatScreenState extends State<VideoChatScreen>
     _remoteRenderer.dispose();
     _peerConnection?.dispose();
     userListener?.cancel();
+    otherListener?.cancel();
     candidatesListener?.cancel();
     roomListener?.cancel();
     super.dispose();
@@ -59,7 +63,7 @@ class _VideoChatScreenState extends State<VideoChatScreen>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.detached) {
-      // restartProcess();
+      presenceService.setUserOffline(userId);
     }
     setState(() {});
   }
@@ -91,6 +95,23 @@ class _VideoChatScreenState extends State<VideoChatScreen>
     });
   }
 
+  void listenOtherUser() async {
+    otherListener ??= _firestore
+        .collection('Users')
+        .doc(otherUserId)
+        .snapshots()
+        .listen((event) async {
+      if (event.exists) {
+        var user = event.data();
+        if (user?["isOnline"] == false) {
+          isLoading = true;
+          await restartProcess();
+          isLoading = false;
+        }
+      }
+    });
+  }
+
   Future<void> listenRoom() {
     if (_roomId.isNotEmpty) {
       roomListener ??= _firestore
@@ -108,6 +129,7 @@ class _VideoChatScreenState extends State<VideoChatScreen>
             otherUserId = initiator;
           }
           await offerOrAnswer(data);
+          listenOtherUser();
           setState(() {
             isLoading = false;
           });
@@ -207,6 +229,9 @@ class _VideoChatScreenState extends State<VideoChatScreen>
         isLoading = true;
       });
       userId = idController.text;
+      await presenceService.setUserOnline(userId);
+      _createPeerConnection();
+
       listenUser();
       final randomBtach = Random().nextInt(numOfBatches) + 1;
       final userQueueDocRef = _firestore
@@ -216,8 +241,7 @@ class _VideoChatScreenState extends State<VideoChatScreen>
           .doc(userId);
       var timestamp = Timestamp.now();
       await userQueueDocRef.set({'userId': userId, 'lastUpdatedAt': timestamp});
-    } on NotMatchException catch (e) {
-      await _findUser();
+      // ignore: empty_catches
     } catch (e) {
       print(e);
     }
@@ -261,22 +285,22 @@ class _VideoChatScreenState extends State<VideoChatScreen>
     }
   }
 
-  Future<void> restartProcess() {
+  Future<void> restartProcess() async {
     var batch = _firestore.batch();
     final userDocRef = _firestore.collection('Users').doc(userId);
     final otherUserDocRef = _firestore.collection('Users').doc(otherUserId);
     final roomDocRef = _firestore.collection('Rooms').doc(_roomId);
 
-    batch.set(userDocRef, {'status': 'free', 'roomId': null},
+    batch.set(userDocRef, {'status': 'available', 'roomId': null},
         SetOptions(merge: true));
-    batch.set(otherUserDocRef, {'status': 'free', 'roomId': null},
+    batch.set(otherUserDocRef, {'status': 'availabe', 'roomId': null},
         SetOptions(merge: true));
     batch.delete(roomDocRef);
     _roomId = "";
     _remoteRenderer.srcObject = null;
     roomListener?.cancel();
     roomListener = null;
-    return batch.commit();
+    await batch.commit();
   }
 
   void _toggleExpand() {
@@ -322,9 +346,8 @@ class _VideoChatScreenState extends State<VideoChatScreen>
     );
   }
 
-  AnimatedPositioned smallPositionedVideo(BuildContext context, Widget widget) {
-    return AnimatedPositioned(
-      duration: const Duration(milliseconds: 500),
+  Positioned smallPositionedVideo(BuildContext context, Widget widget) {
+    return Positioned(
       top: 0,
       right: 0,
       left: MediaQuery.of(context).size.width / 1.3,
@@ -338,9 +361,8 @@ class _VideoChatScreenState extends State<VideoChatScreen>
     );
   }
 
-  AnimatedPositioned largePositionedVideo(BuildContext context, Widget widget) {
-    return AnimatedPositioned(
-      duration: const Duration(milliseconds: 500),
+  Positioned largePositionedVideo(BuildContext context, Widget widget) {
+    return Positioned(
       top: 0,
       right: 0,
       left: 0,
