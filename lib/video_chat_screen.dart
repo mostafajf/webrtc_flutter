@@ -96,7 +96,8 @@ class _VideoChatScreenState extends State<VideoChatScreen>
   }
 
   void listenOtherUser() async {
-    otherListener ??= _firestore
+    otherListener?.cancel();
+    otherListener = _firestore
         .collection('Users')
         .doc(otherUserId)
         .snapshots()
@@ -151,7 +152,7 @@ class _VideoChatScreenState extends State<VideoChatScreen>
     candidatesListener ??= _firestore
         .collection('Rooms')
         .doc(_roomId)
-        .collection('candidates')
+        .collection('Candidates')
         .snapshots()
         .listen((snapshot) {
       for (var change in snapshot.docChanges) {
@@ -190,7 +191,7 @@ class _VideoChatScreenState extends State<VideoChatScreen>
         _firestore
             .collection('Rooms')
             .doc(_roomId)
-            .collection('candidates')
+            .collection('Candidates')
             .add(candidate.toMap());
         listenCandidates();
       }
@@ -296,10 +297,15 @@ class _VideoChatScreenState extends State<VideoChatScreen>
     batch.set(otherUserDocRef, {'status': 'availabe', 'roomId': null},
         SetOptions(merge: true));
     batch.delete(roomDocRef);
-    _roomId = "";
     _remoteRenderer.srcObject = null;
     roomListener?.cancel();
     roomListener = null;
+    setState(() {
+      isExpanded = true;
+      isLoading = false;
+      otherUserId = "";
+      _roomId = "";
+    });
     await batch.commit();
   }
 
@@ -316,7 +322,13 @@ class _VideoChatScreenState extends State<VideoChatScreen>
         children: [
           if (isExpanded) ...[
             largePositionedVideo(context, webrtc.RTCVideoView(_localRenderer)),
-            smallPositionedVideo(context, webrtc.RTCVideoView(_remoteRenderer)),
+            otherUserId.isNotEmpty
+                ? smallPositionedVideo(
+                    context, webrtc.RTCVideoView(_remoteRenderer))
+                : Container(
+                    width: 10,
+                    height: 10,
+                  ),
           ] else ...[
             largePositionedVideo(context, webrtc.RTCVideoView(_remoteRenderer)),
             smallPositionedVideo(context, webrtc.RTCVideoView(_localRenderer)),
