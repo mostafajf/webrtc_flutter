@@ -65,7 +65,9 @@ class _VideoChatScreenState extends State<VideoChatScreen>
     if (state == AppLifecycleState.detached) {
       presenceService.setUserOffline(userId);
     }
-    setState(() {});
+    setState(() {
+      lifecycleState = state;
+    });
   }
 
   Future<void> _initializeRenderers() async {
@@ -125,6 +127,7 @@ class _VideoChatScreenState extends State<VideoChatScreen>
           var initiator = data['initiator'];
           if (initiator == userId) {
             _isInitiator = true;
+            otherUserId = data['receiver'];
           } else {
             _isInitiator = false;
             otherUserId = initiator;
@@ -280,7 +283,6 @@ class _VideoChatScreenState extends State<VideoChatScreen>
           _firestore.collection('Rooms').doc(_roomId).set({
             'answer': description.toMap(),
           }, SetOptions(merge: true));
-          setState(() {});
         }
       }
     }
@@ -320,20 +322,8 @@ class _VideoChatScreenState extends State<VideoChatScreen>
     return Material(
       child: Stack(
         children: [
-          if (isExpanded) ...[
-            largePositionedVideo(context, webrtc.RTCVideoView(_localRenderer)),
-            otherUserId.isNotEmpty
-                ? smallPositionedVideo(
-                    context, webrtc.RTCVideoView(_remoteRenderer))
-                : Container(
-                    width: 10,
-                    height: 10,
-                  ),
-          ] else ...[
-            largePositionedVideo(context, webrtc.RTCVideoView(_remoteRenderer)),
-            smallPositionedVideo(context, webrtc.RTCVideoView(_localRenderer)),
-          ],
           Column(
+            mainAxisSize: MainAxisSize.min,
             children: [
               TextField(
                 controller: idController,
@@ -351,8 +341,26 @@ class _VideoChatScreenState extends State<VideoChatScreen>
               ),
               Text(lifecycleState.toString(),
                   style: const TextStyle(color: Colors.white)),
+              ElevatedButton(
+                  onPressed: () {
+                    setState(() {});
+                  },
+                  child: Text('Refresh')),
             ],
-          )
+          ),
+          if (isExpanded) ...[
+            largePositionedVideo(context, webrtc.RTCVideoView(_localRenderer)),
+            otherUserId.isNotEmpty
+                ? smallPositionedVideo(
+                    context, webrtc.RTCVideoView(_remoteRenderer))
+                : Container(
+                    width: 10,
+                    height: 10,
+                  ),
+          ] else ...[
+            largePositionedVideo(context, webrtc.RTCVideoView(_remoteRenderer)),
+            smallPositionedVideo(context, webrtc.RTCVideoView(_localRenderer)),
+          ],
         ],
       ),
     );
