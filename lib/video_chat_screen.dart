@@ -213,7 +213,6 @@ class _VideoChatScreenState extends State<VideoChatScreen>
       if (state == RTCIceConnectionState.RTCIceConnectionStateDisconnected ||
           state == RTCIceConnectionState.RTCIceConnectionStateFailed ||
           state == RTCIceConnectionState.RTCIceConnectionStateClosed) {
-        debugger();
         developer.log('ICE connection state: $state');
       }
     };
@@ -322,45 +321,49 @@ class _VideoChatScreenState extends State<VideoChatScreen>
     return Material(
       child: Stack(
         children: [
-          Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: idController,
-                style: const TextStyle(color: Colors.white),
-              ),
-              isLoading
-                  ? const CircularProgressIndicator()
-                  : ElevatedButton(
-                      onPressed: _findUser,
-                      child: const Text('Find User'),
-                    ),
-              Text(
-                otherUserId,
-                style: const TextStyle(color: Colors.white, fontSize: 20),
-              ),
-              Text(lifecycleState.toString(),
-                  style: const TextStyle(color: Colors.white)),
-              ElevatedButton(
-                  onPressed: () {
-                    setState(() {});
-                  },
-                  child: Text('Refresh')),
-            ],
-          ),
-          if (isExpanded) ...[
-            largePositionedVideo(context, webrtc.RTCVideoView(_localRenderer)),
-            otherUserId.isNotEmpty
-                ? smallPositionedVideo(
-                    context, webrtc.RTCVideoView(_remoteRenderer))
-                : Container(
-                    width: 10,
-                    height: 10,
+          largePositionedVideo(
+              context,
+              webrtc.RTCVideoView(
+                  isExpanded ? _localRenderer : _remoteRenderer)),
+          smallPositionedVideo(
+              context,
+              webrtc.RTCVideoView(
+                  isExpanded ? _remoteRenderer : _localRenderer)),
+          Positioned(
+            left: 0,
+            top: 0,
+            right: MediaQuery.of(context).size.width / 1.3,
+            bottom: 0,
+            child: Container(
+              color: Colors.white12,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(
+                    controller: idController,
+                    style: const TextStyle(color: Colors.white),
                   ),
-          ] else ...[
-            largePositionedVideo(context, webrtc.RTCVideoView(_remoteRenderer)),
-            smallPositionedVideo(context, webrtc.RTCVideoView(_localRenderer)),
-          ],
+                  isLoading
+                      ? const CircularProgressIndicator()
+                      : ElevatedButton(
+                          onPressed: _findUser,
+                          child: const Text('Find User'),
+                        ),
+                  Text(
+                    otherUserId,
+                    style: const TextStyle(color: Colors.white, fontSize: 20),
+                  ),
+                  Text(lifecycleState.toString(),
+                      style: const TextStyle(color: Colors.white)),
+                  ElevatedButton(
+                      onPressed: () {
+                        setState(() {});
+                      },
+                      child: Text('Refresh')),
+                ],
+              ),
+            ),
+          )
         ],
       ),
     );
