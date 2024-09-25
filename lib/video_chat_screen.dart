@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:developer';
 import 'dart:math';
+import 'dart:ui';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart' as webrtc;
@@ -39,12 +40,19 @@ class _VideoChatScreenState extends State<VideoChatScreen>
   AppLifecycleState? lifecycleState;
   final numOfBatches = 1;
   PresenceService presenceService = PresenceService();
+  bool _isMuted = false;
+  bool _isCameraOn = true;
+  List<webrtc.MediaDeviceInfo> _audioDevices = [];
+  List<webrtc.MediaDeviceInfo> _videoDevices = [];
+  String? _selectedAudioDevice;
+  String? _selectedVideoDevice;
   @override
   void initState() {
     super.initState();
     _initializeRenderers();
     WidgetsBinding.instance.addObserver(this);
     var countryCode = PlatformDispatcher.instance.locale.countryCode;
+    _enumerateDevices();
     developer.log('countryCode: $countryCode');
   }
 
@@ -316,6 +324,60 @@ class _VideoChatScreenState extends State<VideoChatScreen>
     });
   }
 
+  Future<void> _enumerateDevices() async {
+    final devices = await webrtc.navigator.mediaDevices.enumerateDevices();
+    setState(() {
+      _audioDevices = devices.where((d) => d.kind == 'audioinput').toList();
+      _videoDevices = devices.where((d) => d.kind == 'videoinput').toList();
+    });
+  }
+
+  Future<void> _toggleMic() async {
+    if (_localStream != null) {
+      var audioTracks = _localStream!.getAudioTracks();
+      if (audioTracks.isNotEmpty) {
+        var isEnabled = audioTracks[0].enabled;
+        setState(() {
+          _isMuted = !isEnabled;
+        });
+        audioTracks[0].enabled = !isEnabled;
+      }
+    }
+  }
+
+  Future<void> _toggleCamera() async {
+    if (_localStream != null) {
+      var videoTracks = _localStream!.getVideoTracks();
+      if (videoTracks.isNotEmpty) {
+        var isEnabled = videoTracks[0].enabled;
+        setState(() {
+          _isCameraOn = !isEnabled;
+        });
+        videoTracks[0].enabled = !isEnabled;
+      }
+    }
+  }
+
+  Future<void> _changeAudioDevice(String deviceId) async {
+    var constraints = {
+      'audio': {'deviceId': deviceId}
+    };
+    await _localStream?.getAudioTracks().first.applyConstraints(constraints);
+    setState(() {
+      _selectedAudioDevice = deviceId;
+    });
+  }
+
+  Future<void> _changeVideoDevice(String deviceId) async {
+    var constraints = {
+      'video': {'deviceId': deviceId}
+    };
+    await _localStream?.getVideoTracks().first.applyConstraints(constraints);
+    setState(() {
+      _selectedVideoDevice = deviceId;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return Material(
@@ -363,7 +425,79 @@ class _VideoChatScreenState extends State<VideoChatScreen>
                 ],
               ),
             ),
-          )
+          ),
+          Positioned(
+            bottom: 20,
+            left: 20,
+            right: 20,
+            height: 80,
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(16),
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 5, sigmaY: 5),
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: Colors.white10,
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // Mute/Unmute Button
+                      IconButton(
+                        icon: Icon(
+                          _isMuted ? Icons.mic_off : Icons.mic,
+                          color: Colors.white,
+                        ),
+                        onPressed: _toggleMic,
+                      ),
+                      // Toggle Camera Button
+                      IconButton(
+                        icon: Icon(
+                          _isCameraOn ? Icons.videocam : Icons.videocam_off,
+                          color: Colors.white,
+                        ),
+                        onPressed: _toggleCamera,
+                      ),
+                      // Audio Device Selector
+                      DropdownButton<String>(
+                        value: _selectedAudioDevice,
+                        hint: const Text("Audio Device"),
+                        onChanged: (String? deviceId) {
+                          if (deviceId != null) {
+                            _changeAudioDevice(deviceId);
+                          }
+                        },
+                        items: _audioDevices
+                            .map((device) => DropdownMenuItem(
+                                  value: device.deviceId,
+                                  child: Text(device.label),
+                                ))
+                            .toList(),
+                      ),
+                      // Video Device Selector
+                      DropdownButton<String>(
+                        value: _selectedVideoDevice,
+                        hint: const Text("Video Device"),
+                        onChanged: (String? deviceId) {
+                          if (deviceId != null) {
+                            _changeVideoDevice(deviceId);
+                          }
+                        },
+                        items: _videoDevices
+                            .map((device) => DropdownMenuItem(
+                                  value: device.deviceId,
+                                  child: Text(device.label),
+                                ))
+                            .toList(),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
         ],
       ),
     );
