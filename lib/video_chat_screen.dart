@@ -426,73 +426,75 @@ class _VideoChatScreenState extends State<VideoChatScreen>
               ),
             ),
           ),
-          Positioned(
-            bottom: 20,
-            left: 20,
-            right: 20,
-            height: 80,
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(16),
-              child: BackdropFilter(
-                filter: ImageFilter.blur(sigmaX: 5, sigmaY: 5),
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: Colors.white10,
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      // Mute/Unmute Button
-                      IconButton(
-                        icon: Icon(
-                          _isMuted ? Icons.mic_off : Icons.mic,
-                          color: Colors.white,
+          Align(
+            alignment: Alignment.bottomCenter,
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(16),
+                child: BackdropFilter(
+                  filter: ImageFilter.blur(sigmaX: 5, sigmaY: 5),
+                  child: Container(
+                    width: 100,
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.white10,
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        // Mute/Unmute Button
+                        IconButton(
+                          icon: Icon(
+                            _isMuted ? Icons.mic_off : Icons.mic,
+                            color: Colors.white,
+                          ),
+                          onPressed: _toggleMic,
                         ),
-                        onPressed: _toggleMic,
-                      ),
-                      // Toggle Camera Button
-                      IconButton(
-                        icon: Icon(
-                          _isCameraOn ? Icons.videocam : Icons.videocam_off,
-                          color: Colors.white,
+                        // Toggle Camera Button
+                        IconButton(
+                          icon: Icon(
+                            _isCameraOn ? Icons.videocam : Icons.videocam_off,
+                            color: Colors.white,
+                          ),
+                          onPressed: _toggleCamera,
                         ),
-                        onPressed: _toggleCamera,
-                      ),
-                      // Audio Device Selector
-                      DropdownButton<String>(
-                        value: _selectedAudioDevice,
-                        hint: const Text("Audio Device"),
-                        onChanged: (String? deviceId) {
-                          if (deviceId != null) {
-                            _changeAudioDevice(deviceId);
-                          }
-                        },
-                        items: _audioDevices
-                            .map((device) => DropdownMenuItem(
-                                  value: device.deviceId,
-                                  child: Text(device.label),
-                                ))
-                            .toList(),
-                      ),
-                      // Video Device Selector
-                      DropdownButton<String>(
-                        value: _selectedVideoDevice,
-                        hint: const Text("Video Device"),
-                        onChanged: (String? deviceId) {
-                          if (deviceId != null) {
-                            _changeVideoDevice(deviceId);
-                          }
-                        },
-                        items: _videoDevices
-                            .map((device) => DropdownMenuItem(
-                                  value: device.deviceId,
-                                  child: Text(device.label),
-                                ))
-                            .toList(),
-                      ),
-                    ],
+                        // Audio Device Selector
+                        // DropdownButton<String>(
+                        //   value: _selectedAudioDevice,
+                        //   hint: const Text("Audio Device"),
+                        //   onChanged: (String? deviceId) {
+                        //     if (deviceId != null) {
+                        //       _changeAudioDevice(deviceId);
+                        //     }
+                        //   },
+                        //   items: _audioDevices
+                        //       .map((device) => DropdownMenuItem(
+                        //             value: device.deviceId,
+                        //             child: Text(device.label),
+                        //           ))
+                        //       .toList(),
+                        // ),
+                        // // Video Device Selector
+                        // DropdownButton<String>(
+                        //   value: _selectedVideoDevice,
+                        //   hint: const Text("Video Device"),
+                        //   onChanged: (String? deviceId) {
+                        //     if (deviceId != null) {
+                        //       _changeVideoDevice(deviceId);
+                        //     }
+                        //   },
+                        //   items: _videoDevices
+                        //       .map((device) => DropdownMenuItem(
+                        //             value: device.deviceId,
+                        //             child: Text(device.label),
+                        //           ))
+                        //       .toList(),
+                        // ),
+                      ],
+                    ),
                   ),
                 ),
               ),
